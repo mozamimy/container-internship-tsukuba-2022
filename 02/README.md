@@ -363,7 +363,7 @@ cp /lib/x86_64-linux-gnu/libpthread.so.0 /root/chroot/lib
 cd /root/chroot/
 ln -s lib lib64
 
-cd
+cd ~ubuntu
 ```
 
 上記のように変更したあと、`go run main.go run` などでプログラムを実行してみましょう。
@@ -452,7 +452,13 @@ cp /lib/x86_64-linux-gnu/libpthread.so.0 /root/rootfs/lib
 cd /root/rootfs/
 ln -s lib lib64
 
-cd
+cd ~ubuntu
+```
+
+また、`chroot` での脱獄の例で利用した unchroot が `pivot_root` による実装では脱獄できなくなっていることを確認するため、`/root/rootfs` にコピーしておきましょう。
+
+```sh
+cp unchroot /root/rootfs
 ```
 
 `main.go` を次のように変更します。
@@ -496,7 +502,7 @@ cd
 
 - `pivot_root(new_root, put_old)` では `new_root` と `put_old` が両方ディレクトリである必要がある
 - `new_root` と `put_old` は `pivot_root` を実行するディレクトリと同じファイルシステムにあってはならない
-    - この条件を満たすために、`/root/rootfs` を `rootfs` として `MS_BIND` を利用してマウントしています
+    - この条件を満たすために、`/root/rootfs` を `/root/rootfs` に `MS_BIND` を利用してマウントしています (いわゆるバインドマウント) (ややこしい...)
 - `put_old` は `new_root` 以下に存在しなければならない
 - 他のファイルシステムが `put_old` にマウントされていてはならない
 
@@ -510,6 +516,8 @@ cd
 
 また、事前に `proc` をマウントしておき、`rootfs` のマウント時に `MS_REC` を併せて付与することで、
 `proc` がマウントされた状態のファイルシステムに `pivot_root` が行えるようになっています。
+
+`go run main.go run` などとしてコンテナ内で起動した sh で、`./unchroot` を実行したのち、`pwd` コマンドや `ls` コマンドの結果を確認して、ホスト側の `/` が見えていないかを確認しましょう。
 
 (refs: `man 2 mount`)
 
