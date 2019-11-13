@@ -578,15 +578,8 @@ cpu.cfs_period_us      cpu.stat          cpuacct.usage_all  cpuacct.usage_percpu
 ```
 
 どのプロセスをこの cgroup の管理下に入れるかというのを、`tasks` というファイルで管理しています。
-例えば、自分自身が現在起動しているシェルをこの cgroup の管理下に入れたい場合は、次のように出来ます。
 
-``sh
-echo $$ > /sys/fs/cgroup/cpu/my-container/tasks
-``
-
-これで今起動しているシェルは `my-container` cgroup の管理下に入りました。
-
-実際に CPU 制限を行ってみましょう。例えば `cpu.cfs_quota_us` という設定値は、`cpu.cfs_period_us` マイクロ秒間あたりに、何マイクロ秒間 CPU を利用できるか、という値です。
+では、実際に CPU 制限を行ってみましょう。例えば `cpu.cfs_quota_us` という設定値は、`cpu.cfs_period_us` マイクロ秒間あたりに、何マイクロ秒間 CPU を利用できるか、という値です。
 
 `cpu.cfs_period_us` のデフォルト値は、以下の通り 100000 マイクロ秒 (0.1 秒) になっています。
 
@@ -607,6 +600,14 @@ echo 1000 > /sys/fs/cgroup/cpu/my-container/cpu.cfs_quota_us
 echo $(pgrep yes) > /sys/fs/cgroup/cpu/my-container/tasks
 
 top                    # yes コマンドの CPU 使用率を眺めてみる
+```
+
+確認が済んだら、`fg` コマンドで `yes` コマンドの実行をフォアグラウンドに戻し、Ctrl+C で SIGINT シグナルを送って殺してしまいましょう。
+
+```sh
+fg
+yes >> /dev/null
+^C
 ```
 
 (refs: `man 7 cgroups`)
