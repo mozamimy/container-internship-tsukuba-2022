@@ -49,7 +49,7 @@ image-spec における [`image-layout.md`](https://github.com/opencontainers/im
 
 ```sh
 cd /root
-skopeo copy docker://alpine:3.9 oci:alpine-oci:3.9
+skopeo --insecure-policy copy docker://alpine:3.9 oci:alpine-oci:3.9
 ```
 
 この状態で、`alpine-oci` ディレクトリを確認してみると、`image-layout` に準拠しているディレクトリ構造になっており、各ファイルも imege-spec に準拠しているものになります。
