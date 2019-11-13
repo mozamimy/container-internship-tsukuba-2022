@@ -52,8 +52,24 @@ Linux では、プロセスが使うリソースを分離して提供する、Na
 
 ### 名前空間の分離
 
-いくつかに関して、実際に試してみましょう。
-次のような、`/bin/sh` を起動する際に名前空間を利用する Go のプログラムとして、`main.go` を用意します。
+いくつかに関して、実際に試してみましょう。次のような、`/bin/sh` を起動する際に名前空間を利用する Go のプログラムとして、`main.go` を用意します。
+
+ログインした時点では ubuntu ユーザとなっていますが、ここからの作業は基本的には root ユーザで行うため、ターミナル上では sudo コマンドと su コマンドを使い、root ユーザになりましょう。
+
+また、`pwd` コマンドで、カレントディレクトリが `/home/ubuntu` となっていることを確認します。
+
+```sh
+sudo su
+pwd
+```
+
+`touch` コマンドで `main.go` ファイルを作成し、所有者を ubuntu ユーザに変更します。VS Code からは ubuntu ユーザとしてログインしているため、`main.go` を編集可能にするためにこのような操作が必要になります。
+
+```sh
+touch main.go
+chwon ubuntu:ubuntu main.go
+```
+
 Go の `cmd.SysProcAttr` には、`clone(2)` に渡すのと同じような flags を渡すことができます。
 (`clone(2)` は `fork(2)` と似たような子プロセスを生成するシステムコール)
 
@@ -92,10 +108,9 @@ func main() {
 }
 ```
 
-main.go は ubuntu ユーザ (ログインした時点ではそうなっているはずです) で作成・編集しますが、プログラムの実行の際には、以下のようにして root ユーザになり変わった上で実行してください。
+プログラムの実行の際には、以下のようにして実行します。このとき、root ユーザになっているかを確認してください。
 
 ```sh
-sudo su -
 go run main.go
 ```
 
@@ -359,7 +374,12 @@ cd
 
 ...というのは本当でしょうか？
 
-chroot するディレクトリである `/root/chroot/` に、`unchroot.go` という次のようなファイルを設置してみます。
+`main.go` と同様に、ubuntu ユーザのホームディレクトリ (`/home/ubuntu`) に、`unchroot.go` という次のようなファイルを設置してみます。
+
+```sh
+touch unchroot.go
+chown ubuntu:ubuntu unchroot.go
+```
 
 ```go
 package main
@@ -389,13 +409,11 @@ func main() {
 }
 ```
 
-予めこのプログラムをビルドしておきます。
+このプログラムをビルドして生成された実行ファイルを、`/root/chroot` ディレクトリに配置します。
 
 ```sh
-cd /root/chroot
 go build unchroot.go
-
-cd
+cp unchroot /root/chroot
 ```
 
 このプログラムは、chroot されたディレクトリ内に単純に `.42` というディレクトリを作成し、まずそこに chroot します。
