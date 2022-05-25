@@ -161,8 +161,9 @@ Go の `Cmd.SysProcAttr` には、`CLONE_NEWUSER` した際の `UidMappings`, `G
  	cmd.Stdin = os.Stdin
 ```
 
-このように変更を加えた後、`go run main.go` で実行したシェル内で `id` などを実行して、
-正しく root として認識されていることを確認してください。
+このように変更を加えた後、`go run main.go` で実行したシェル内で `id` などを実行して、正しく root として認識されていることを確認してください。
+
+上記の変更をを入れると root ユーザに設定されますが、ubuntu ユーザに変更する場合はどのようにすればよいでしょうか? 試してみてください。(ヒント💡: `id` コマンドを実行することで ubuntu ユーザの UID と GID を確認できます)
 
 ### UTS の設定
 
@@ -341,7 +342,7 @@ Linux には、プロセスのルートディレクトリや、ルートファ�
 mkdir -p /root/chroot/proc
 ```
 
-また、chroot 後の環境でも `sh` と `ls` が利用できるように、`sh`, `ls` 並びに必要な静的ライブラリを設置します。
+また、chroot 後の環境でも `sh` と `ls` が利用できるように、`sh`, `ls` コマンドのバイナリとその実行に必要なライブラリを配置します。
 
 ```sh
 mkdir -p /root/chroot/bin
@@ -356,9 +357,7 @@ ldd /bin/ls
 cp /lib/x86_64-linux-gnu/libc.so.6 /root/chroot/lib
 cp /lib64/ld-linux-x86-64.so.2 /root/chroot/lib
 cp /lib/x86_64-linux-gnu/libselinux.so.1 /root/chroot/lib
-cp /lib/x86_64-linux-gnu/libpcre.so.3 /root/chroot/lib
-cp /lib/x86_64-linux-gnu/libdl.so.2 /root/chroot/lib
-cp /lib/x86_64-linux-gnu/libpthread.so.0 /root/chroot/lib
+cp /lib/x86_64-linux-gnu/libpcre2-8.so.0 /root/chroot/lib
 
 cd /root/chroot/
 ln -s lib lib64
@@ -366,7 +365,7 @@ ln -s lib lib64
 cd ~ubuntu
 ```
 
-上記のように変更したあと、`go run main.go run` などでプログラムを実行してみましょう。
+上記のように変更したあと、`go run main.go run` などでプログラムを実行し、`pwd` コマンドや `ls` コマンドなどでファイルシステムがどのようになっているかを確認しましょう。
 
 ### Escaping a chroot
 
@@ -445,9 +444,7 @@ cp /bin/ls /root/rootfs/bin
 cp /lib/x86_64-linux-gnu/libc.so.6 /root/rootfs/lib
 cp /lib64/ld-linux-x86-64.so.2 /root/rootfs/lib
 cp /lib/x86_64-linux-gnu/libselinux.so.1 /root/rootfs/lib
-cp /lib/x86_64-linux-gnu/libpcre.so.3 /root/rootfs/lib
-cp /lib/x86_64-linux-gnu/libdl.so.2 /root/rootfs/lib
-cp /lib/x86_64-linux-gnu/libpthread.so.0 /root/rootfs/lib
+cp /lib/x86_64-linux-gnu/libpcre2-8.so.0 /root/rootfs/lib
 
 cd /root/rootfs/
 ln -s lib lib64
@@ -523,7 +520,7 @@ cp unchroot /root/rootfs
 
 ## capabilities
 
-Linux のプロセスに対する権限チェックは、特権プロセスと呼ばれる、実効ユーザ ID (euid) が 0 （つまり root のこと）のプロセスか、 
+Linux のプロセスに対する権限チェックは、特権プロセスと呼ばれる、実効ユーザ ID (euid) が 0 （つまり root のこと）のプロセスか、
 非特権プロセスと呼ばれる実効ユーザ ID が 0 ではないプロセスかで大きく異なっており、特権プロセスでは全てのカーネルの権限チェックがバイパスされます。
 
 Linux capabilities では、root が持っていた権限を capability と呼ばれるいくつかのグループに分割しています。
@@ -554,52 +551,46 @@ Go 言語から capabilities を操作するには、[syndtr/gocapability](https
 こういった際に利用できるのが、Linux に実装されている cgroups (Control groups) と呼ばれるプロセスの管理機構です。
 cgroups では、プロセスをグループ単位でまとめ、そのグループ内のプロセスに対して、CPU やメモリなどの利用量などを制限することができるようになっています。
 
-システムコールを用いて cgroups を操作する方法ももちろんありますが、今回は簡単のために、ホストでマウント済みの cgroupfs というファイルシステムを用いて、
-プロセスにリソース制限を掛けてみましょう。
+システムコールを用いて cgroups を操作する方法ももちろんありますが、ここでは cgroups の理解のためにホストでマウント済みの cgroupfs というファイルシステムを通して素朴にリソース制限をかけてみましょう。
 
 cgroupfs は、現在では一般的に `/sys/fs/cgroups` にマウントされており、このファイルシステムに対して読み込み・書き込みの操作を行うことで、
 cgroups 内でのリソースの利用状況を確認したり、リソースの利用に制限を掛けることが可能になっています。
-cgroup には v1 と v2 があり、v2 がもちろん推奨されているのですが、多くの環境でまだ v1 が使われているという事情もあり、今回は v1 の操作について説明します。
-（とはいえ、v1 と v2 で今回説明する範囲での操作自体に大きな変わりはありません）
+cgroup には v1 と v2 があり v2 の登場以降も v1 が長く使われていましたが、現在では v2 のみをサポートする環境も増えてきました。今回みなさんにお渡ししている Linux 環境 (Ubuntu 22.04) では v2 のみがサポートされています。とはいえ、v1 と v2 で今回説明する範囲での操作自体に大きな変わりはありません。
 
-実際に `my-container` という名前の cpu レベルでの cgroup を作るには、以下のようにします。
+では実際に `my-container` という名前の cgroup を以下のようして作ってみましょう。
 　
 ```sh
-mkdir /sys/fs/cgroup/cpu/my-container/
+mkdir /sys/fs/cgroup/my-container/
 ```
 
-このようにすると、作成したディレクトリの配下に様々なファイルが現れます。
+このようにすると、作成したディレクトリの配下に様々なファイルが現れます。どのプロセスをこの cgroup の管理下に入れるかは `cgroup.procs` というファイルで管理しています。
 
 ```sh
-ls /sys/fs/cgroup/cpu/my-container/
-cgroup.clone_children  cpu.cfs_quota_us  cpuacct.stat       cpuacct.usage_percpu       cpuacct.usage_sys   tasks
-cgroup.procs           cpu.shares        cpuacct.usage      cpuacct.usage_percpu_sys   cpuacct.usage_user
-cpu.cfs_period_us      cpu.stat          cpuacct.usage_all  cpuacct.usage_percpu_user  notify_on_release
+ls /sys/fs/cgroup/my-container/
+cgroup.controllers  cgroup.kill             cgroup.procs            cgroup.threads  cpu.max        cpu.stat        cpu.weight       cpuset.cpus.effective  cpuset.mems.effective  io.prio.class  memory.current       memory.high  memory.min        memory.pressure      memory.swap.events  pids.current
+cgroup.events       cgroup.max.depth        cgroup.stat             cgroup.type     cpu.max.burst  cpu.uclamp.max  cpu.weight.nice  cpuset.cpus.partition  io.max                 io.stat        memory.events        memory.low   memory.numa_stat  memory.stat          memory.swap.high    pids.events
+cgroup.freeze       cgroup.max.descendants  cgroup.subtree_control  cpu.idle        cpu.pressure   cpu.uclamp.min  cpuset.cpus      cpuset.mems            io.pressure            io.weight      memory.events.local  memory.max   memory.oom.group  memory.swap.current  memory.swap.max     pids.max
 ```
 
-どのプロセスをこの cgroup の管理下に入れるかというのを、`tasks` というファイルで管理しています。
-
-では、実際に CPU 制限を行ってみましょう。例えば `cpu.cfs_quota_us` という設定値は、`cpu.cfs_period_us` マイクロ秒間あたりに、何マイクロ秒間 CPU を利用できるか、という値です。
-
-`cpu.cfs_period_us` のデフォルト値は、以下の通り 100000 マイクロ秒 (0.1 秒) になっています。
+では実際に CPU 利用率を制限してみましょう。ここではプロセスが利用できる CPU 使用率を 10% に制限してみます。CPU 使用率の制限は `cpu.max` というファイルで設定でき、デフォルトでは以下のように `max 100000` という値が設定されています。
 
 ```sh
-cat /sys/fs/cgroup/cpu/my-container/cpu.cfs_period_us
-100000
+cat /sys/fs/cgroup/my-container/cpu.max
+max 100000
 ```
 
-そのため、CPU 使用率を 1% に制限したい場合は、`cpu.cfs_quota_us` に `1000` と書き込めば良いわけになります。
+スペース区切りで max と 100000 が書かれていますが、これは 100000 マイクロ秒あたりに最大のマイクロ秒 CPU (100000) を利用できることを意味しています。すなわち、CPU 使用率を 10% に制限したい場合は `10000 1000000` と書けばよいわけです。
 
 実際に、CPU 利用率を制限する前と後で、CPU をそれなりに利用するコマンド `yes >> /dev/null` を実行して眺めてみましょう。
 
 ```sh
-yes >> /dev/null &     # バックグラウンドジョブとして yes >> /dev/null を起動
-top                    # yes コマンドの CPU 使用率を眺めてみる
+yes >> /dev/null &    # バックグラウンドジョブとして yes >> /dev/null を起動
+htop                  # yes コマンドの CPU 使用率を眺めてみる (この時点では 1 コアまるまる 100% 利用しているはず)
 
-echo 1000 > /sys/fs/cgroup/cpu/my-container/cpu.cfs_quota_us
-echo $(pgrep yes) > /sys/fs/cgroup/cpu/my-container/tasks
+echo "10000 100000" > /sys/fs/cgroup/my-container/cpu.max
+echo $(pgrep yes) > /sys/fs/cgroup/my-container/cgroup.procs
 
-top                    # yes コマンドの CPU 使用率を眺めてみる
+htop                  # yes コマンドの CPU 使用率を眺めてみる
 ```
 
 確認が済んだら、`fg` コマンドで `yes` コマンドの実行をフォアグラウンドに戻し、Ctrl+C で SIGINT シグナルを送って殺してしまいましょう。
@@ -612,10 +603,12 @@ yes >> /dev/null
 
 (refs: `man 7 cgroups`)
 
+このように cgroups をうまく使えば普段の生活も豊かになると思うので、どんどん利用していきましょう。
+
 ### 自作コンテナで cgroup を利用する
 
-紹介した通り、cgroup の操作は、cgroupfs がマウントされていればファイルシステム操作で行えることがわかりました。
-自作コンテナ上で、自分自身の CPU 使用率を 1% に制限した状態でシェルを起動するようにしてみましょう。
+紹介した通り、cgroup の操作は、cgroupfs がマウントされていればファイルシステムを経由して行えることがわかりました。
+自作コンテナ上で、自分自身の CPU 使用率を 10% に制限した状態でシェルを起動するようにしてみましょう。
 
 ```diff
 --- 7.go	2019-03-19 14:41:07.000000000 +0900
@@ -632,31 +625,25 @@ yes >> /dev/null
  	if err := syscall.Sethostname([]byte("container")); err != nil {
  		return fmt.Errorf("Setting hostname failed: %w", err)
  	}
--	if err := syscall.Mount("proc", "/root/rootfs/proc", "proc", uintptr(syscall.MS_NOEXEC|syscall.MS_NOSUID|syscall.MS_NODEV), ""); err != nil {
-+
 +	if err := os.MkdirAll("/sys/fs/cgroup/cpu/my-container", 0700); err != nil {
 +		return fmt.Errorf("Cgroups namespace my-container create failed: %w", err)
 +	}
-+	if err := ioutil.WriteFile("/sys/fs/cgroup/cpu/my-container/tasks", []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644); err != nil {
++	if err := ioutil.WriteFile("/sys/fs/cgroup/my-container/cgroup.procs", []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644); err != nil {
 +		return fmt.Errorf("Cgroups register tasks to my-container namespace failed: %w", err)
 +	}
-+	if err := ioutil.WriteFile("/sys/fs/cgroup/cpu/my-container/cpu.cfs_quota_us", []byte("1000\n"), 0644); err != nil {
-+		return fmt.Errorf("Cgroups add limit cpu.cfs_quota_us to 1000 failed: %w", err)
++	if err := ioutil.WriteFile("/sys/fs/cgroup/my-container/cpu.max", []byte("10000 100000\n"), 0644); err != nil {
++		return fmt.Errorf("Cgroups add limit cpu.max failed: %w", err)
 +	}
-+
-+	if err := syscall.Mount("proc", "/root/rootfs/proc", "proc", syscall.MS_NOEXEC|syscall.MS_NOSUID|syscall.MS_NODEV, ""); err != nil {
- 		return fmt.Errorf("Proc mount failed: %w", err)
- 	}
  	if err := os.Chdir("/root"); err != nil {
 ```
 
-`go run main.go run` のようにして起動した sh プロセス上で、以下のコマンドを実行して CPU を使い切るようにし、別のターミナルから作業用のインスタンスにログインして top を眺め、`sh` が 1% でキャップされていることを確認してください。
+`go run main.go run` のようにして起動した sh プロセス上で、以下のコマンドを実行して CPU を使い切るようにし、別のターミナルから作業用のインスタンスにログインして top を眺め、`sh` が 10% でキャップされていることを確認してください。
 
 ```sh
 while true; do echo nantoka; done
 ```
 
-設定した cgroups はその子プロセスにも適用されるため、このようにコンテナ全体として 1% で CPU 使用率をキャップすることができます。
+設定した cgroups はその子プロセスにも適用されるため、このようにコンテナ全体として 10% で CPU 使用率をキャップすることができます。
 
 ## その他のシステムコールや技術
 
