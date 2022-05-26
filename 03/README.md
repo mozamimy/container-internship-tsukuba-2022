@@ -27,17 +27,16 @@ image-spec で標準化が進んでいるものの、現在広く使われてい
 Docker イメージは、`docker pull` してきた後に `docker save` などを実行することで tar 形式で書き出すことができます。少し中身を見てみましょう。
 
 ```sh
-docker pull alpine:3.9
-docker save alpine:3.9 --output alpine-3.9.tar
+docker pull alpine:3.16
+docker save alpine:3.16 --output alpine-3.16.tar
 
 mkdir /root/alpine
-tar -xf alpine-3.9.tar -C /root/alpine
+tar -xf alpine-3.16.tar -C /root/alpine
 ```
 
 ```sh
 ls /root/alpine
-5cb3aa00f89934411ffba5c063a9bc98ace875d8f92e77d0029543d9f2ef4ad0.json  manifest.json
-b40d48399b5890827b4252edbd2638b981772678bb1cc096436129f631722047       repositories
+4c4def4ca6553c8b4545fef0e70537cf8be0b135ba624aa2b180db15ea70165c  e66264b98777e12192600bf9b4d663655c98a090072e1bab49e233d7531d1294.json  manifest.json  repositories
 ```
 
 このように、`manifest.json` や `repositories` などが置かれており、
@@ -49,7 +48,7 @@ image-spec における [`image-layout.md`](https://github.com/opencontainers/im
 
 ```sh
 cd /root
-skopeo --insecure-policy copy docker://alpine:3.9 oci:alpine-oci:3.9
+skopeo --insecure-policy copy docker://alpine:3.16 oci:alpine-oci:3.16
 ```
 
 この状態で、`alpine-oci` ディレクトリを確認してみると、`image-layout` に準拠しているディレクトリ構造になっており、各ファイルも imege-spec に準拠しているものになります。
@@ -87,7 +86,7 @@ OCI イメージを仕様に基づいて解凍したものがこの Filesystem b
 ```sh
 cd /root
 mkdir alpine-bundle
-oci-image-tool create --ref name=3.9 alpine-oci alpine-bundle
+oci-image-tool create --ref name=3.16 alpine-oci alpine-bundle
 ```
 
 展開された `alpine-bundle` ディレクトリを眺めてみると、書かれている通りのファイルシステムツリーになっていることがわかります。
@@ -98,7 +97,7 @@ config.json  rootfs
 
 cat alpine-bundle/config.json | jq .
 {
-  "ociVersion": "1.0.0",
+  "ociVersion": "1.0.2-dev",
   "process": {
     "terminal": true,
     "user": {
@@ -169,7 +168,7 @@ cd /root/alpine-bundle
 
 ```json
 {
-  "ociVersion": "1.0.0",
+  "ociVersion": "1.0.2-dev",
   "process": {
     "terminal": false,
     "user": {
@@ -216,7 +215,7 @@ alpine-test   29017       created     /home/ubuntu/alpine-bundle   2019-03-18T22
 ```sh
 runc state alpine-test
 {
-  "ociVersion": "1.0.1-dev",
+  "ociVersion": "1.0.2-dev",
   "id": "alpine-test",
   "pid": 29017,
   "status": "created",
@@ -246,10 +245,10 @@ ID            PID         STATUS      BUNDLE                       CREATED      
 alpine-test   0           stopped     /home/ubuntu/alpine-bundle   2019-03-18T22:25:05.041029433Z   root
 ```
 
-``sh
+```sh
 runc state alpine-test
 {
-  "ociVersion": "1.0.1-dev",
+  "ociVersion": "1.0.2-dev",
   "id": "alpine-test",
   "pid": 0,
   "status": "stopped",
@@ -258,7 +257,7 @@ runc state alpine-test
   "created": "2019-03-18T22:25:05.041029433Z",
   "owner": ""
 }`
-``
+```
 
 このように、`STATUS` が `stopped` になっていることがわかります。
 この状態のコンテナは Lifecycle に従って正しく `delete` を行う必要があるので、`runc delete <container-id>` を発行します。
