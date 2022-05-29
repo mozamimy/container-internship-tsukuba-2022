@@ -67,7 +67,7 @@ pwd
 
 ```sh
 touch main.go
-chwon ubuntu:ubuntu main.go
+chown ubuntu:ubuntu main.go
 ```
 
 Go の `cmd.SysProcAttr` には、`clone(2)` に渡すのと同じような flags を渡すことができます。
